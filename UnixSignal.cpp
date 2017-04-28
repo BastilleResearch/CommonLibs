@@ -30,7 +30,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <unistd.h>
-#include <google/coredumper.h>
+//#include <google/coredumper.h>
 
 #include "UnixSignal.h"
 #include "Logger.h"
@@ -65,7 +65,7 @@ void UnixSignal::Handler(int sig)
 		snprintf(buf, sizeof(buf)-1, "%s.%d", mCoreFile.c_str(), getpid());
 	    else
 		snprintf(buf, sizeof(buf)-1, "%s", mCoreFile.c_str());
-	    WriteCoreDump(buf);
+	    //WriteCoreDump(buf);
 
 	    // and save the files if needed
 	    if (mSaveFiles)

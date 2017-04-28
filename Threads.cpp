@@ -120,12 +120,101 @@ bool Mutex::trylock(const char *file, unsigned line)
 	}
 }
 
+// clock_gettime is not implemented on OSX
+// http://stackoverflow.com/questions/5167269/clock-gettime-alternative-in-mac-os-x
+#ifdef __MACH__
+
+#include <sys/time.h>
+#include <mach/mach_time.h>
+
+#define ORWL_NANO (+1.0E-9)
+#define ORWL_GIGA UINT64_C(1000000000)
+
+#define CLOCK_THREAD_CPUTIME_ID 0
+
+static double orwl_timebase = 0.0;
+static uint64_t orwl_timestart = 0;
+
+static double _orwl_gettime(void) {
+    // be more careful in a multithreaded environement
+    if (!orwl_timestart) {
+        mach_timebase_info_data_t tb = { 0 };
+        mach_timebase_info(&tb);
+        orwl_timebase = tb.numer;
+        orwl_timebase /= tb.denom;
+        orwl_timestart = mach_absolute_time();
+    }
+    return (mach_absolute_time() - orwl_timestart) * orwl_timebase;
+}
+
+static struct timespec orwl_gettime(void) {
+    struct timespec t;
+    double diff = _orwl_gettime();
+    t.tv_sec = diff * ORWL_NANO;
+    t.tv_nsec = diff - (t.tv_sec * ORWL_GIGA);
+    return t;
+}
+
+static int clock_gettime(int /*clk_id*/, struct timespec* t) {
+    (*t) = orwl_gettime();
+    return 0;
+}
+
+#endif // __MACH__
+/*
+int pthread_mutex_timedlock(pthread_mutex_t *mutex, const struct timespec *abs_timeout)
+{
+    int result = 0;
+    do
+    {
+        result = pthread_mutex_trylock(&mutex);
+        if (result == EBUSY)
+        {
+            timespec ts;
+            ts.tv_sec = 0;
+            ts.tv_nsec = 10000000;
+            
+            // Sleep for 10,000,000 nanoseconds before trying again.
+            int status = -1;
+            while (status == -1)
+                status = nanosleep(&ts, &ts);
+        }
+        else
+            break;
+    }
+    while ((result != 0) && ((abs_timeout is 0) || (the timeout time has passed)));
+
+    return result;
+}
+*/
 // Returns true if the lock was acquired within the timeout, or false if it timed out.
 bool Mutex::timedlock(int msecs) // Wait this long in milli-seconds.
 {
-	Timeval future(msecs);
-	struct timespec timeout = future.timespec();
-	return ETIMEDOUT != pthread_mutex_timedlock(&mMutex, &timeout);
+//	Timeval future(msecs);
+//	struct timespec timeout = future.timespec();
+//	return ETIMEDOUT != pthread_mutex_timedlock(&mMutex, &timeout);
+    
+    double time_start = _orwl_gettime();
+    
+    while (true)
+    {
+        int result = pthread_mutex_trylock(&mMutex);
+        if (result == 0)
+            return true;
+        if (msecs <= 0)
+            return false;
+        timespec ts;
+        ts.tv_sec = 0;
+        ts.tv_nsec = 500000; // MAGIC: 500us
+        int status = -1;
+        while (status == -1) // Ignore signals (?)
+            status = nanosleep(&ts, &ts);
+        double time_now = _orwl_gettime();
+        if ((time_now - time_start) >= ((double)(msecs) * 1e6)) // ms to ns
+            return false;
+    }
+    
+    return false;
 }
 
 // There is a chance here that the mLockerFile&mLockerLine

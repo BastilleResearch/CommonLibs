@@ -23,6 +23,8 @@
 
 #include "Threads.h"
 
+typedef sig_t sighandler_t;
+
 /** A C++ wrapper for managing unix signals. */
 class UnixSignal
 {

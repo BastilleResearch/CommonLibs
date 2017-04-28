@@ -595,7 +595,7 @@ public:
 	}
 
 	// pat added.
-	unsigned size() const { ScopedLock(mLock); return mMap.size(); }
+	unsigned size() const { ScopedLock lock(mLock); return mMap.size(); }
 
 	// WARNING: These iterators are not intrinsically thread safe.
 	// Caller must use ScopedIterator or the modification lock or enclose the entire iteration in some higher level lock.
